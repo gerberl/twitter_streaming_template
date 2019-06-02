@@ -10,76 +10,55 @@ from datetime import datetime, date, time
 import pandas as pd
 import numpy as np
 
-keys = json.load(open('./twitter-api-apps-and-keys.json'))
-# keys['SocialLanguageStats']
+"""
+the app and keys for Twitter authentication are stored in a json file
+using the format
 
+{
+   "my_app_name": {
+      "api_key": "...",
+      "api_secret": "...",
+      "access_token": "...",
+      "access_token_secret": "..."
+   }
+}
+
+Naturally, one has to replace `my_app_name` with the appropriate app name 
+from their own Twitter developer account, as well as the keys and tokens.
+"""
+
+keys = json.load(open('./twitter-api-apps-and-keys.json'))
 
 # file name of tweets dataset
-# later, it will be derived from the tracking terms (emojis, in this case)
-# and current date and time
-# https://docs.python.org/2/library/datetime.html#strftime-and-strptime-behavior
+# at this stage, derived from current date and time
+# https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior
+# REFACTORING: should probably use os.path.join
 timestamp_str = datetime.now().strftime('%Y%m%d-%H%M%S')
-dataset_fname = "./streamed_tweets/" + timestamp_str + "-" + "top_emojis.json"
+dataset_fname = "./" + timestamp_str + "-" + "top_emojis.json"
 
 # log file name
-# later, it will be derived from the tracking terms and current date and time
-log_fname = timestamp_str + "-" + "top_emojis.log"
+log_fname = timestamp_str + "-" + "....log"
 
 
-
-app_keys = keys['NLP_Crawler_1']
+# change `my_app_name`...
+app_keys = keys['my_app_name']
 auth = OAuthHandler(app_keys['api_key'], app_keys['api_secret'])
 auth.set_access_token(
     app_keys['access_token'], app_keys['access_token_secret']
 )
 
 
-# based on 
-# https://www.webpagefx.com/tools/emoji-cheat-sheet/
-# http://emojitracker.com/
-# top_emoji_names_symbol = [
-#     (':joy:', '😂'),
-#     (':heart:', '❤️'),
-#     (':heart_eyes:', '😍'),
-#     (':hearts:', '♥️'),  # issues here - black heart suit?
-#     (':sob:', '😭'),
-#     (':blush:', '😊'),
-#     (':unamused:', '😒'),
-#     (':two_hearts:', '💕'),
-#     (':kissing_heart:', '😘'),
-#     (':weary:', '😩'),
-#     (':relaxed:', '☺️'),
-#     (':ok_hand:', '👌'),
-#     (':pensive:', '😔'),
-#     (':grin:', '😁'),
-#     (':smirk:', '😏'),
-# ]
-
-# emojis_to_track = [ t[1] for t in top_emoji_names_symbol ]
-
-# I have now scraped and selected a subset of emojis from emojitracker
-emojis_df = pd.read_csv('./selected_emoji_ranking_extract_emojitracker-fixed_char.csv')
-# emojis_df.tail()
-# emojis_df['fixed_emoji_char']
-# list(emojis_df['fixed_emoji_char'])
-emojis_to_track = list(emojis_df['fixed_emoji_char'])
-
-# emojis_to_track = [ t[1] for t in top_emoji_names_symbol ]
-
 # parameters for streaming, including language!
 # strings provided are supposed to be invididual words. It won't find 
 # substrings.
-# Would it find syntactic emojis?
 # 
 # https://developer.twitter.com/en/docs/tweets/filter-realtime/guides/basic-stream-parameters
 # 
 # do these operators work with streaming or just with search API?
 # https://developer.twitter.com/en/docs/tweets/rules-and-filtering/overview/standard-operators.html
 
-# tracking = [ 'brexit', 'EU referendum' ]
-# tracking = [ '#Brexit ' + e for e in emojis_to_track ]
-# tracking = [ '#TrumpVisitsUK media' ]
-tracking = emojis_to_track
+# for example...
+tracking = [ 'brexit', 'EU referendum' ]
 
 
 # what I'd like to project out of the tweets...
@@ -111,9 +90,6 @@ def proj_attr_interest_tweet(tweet):
             k: tweet[k] 
             for k in keys_of_interest if k in tweet.keys() 
         }, 
-        # I've seen this idiom somewhere, but I have no idea how this
-        # unpacking operation works
-        # **{ k: tweet['user'][k] for k in keys_of_interest_user if k in keys_of_interest_user }
         user={ 
             k: tweet['user'][k] 
             for k in keys_of_interest_user if k in tweet['user'].keys() 
@@ -134,38 +110,28 @@ class Listener(StreamListener):
         self.f_out = f_out
         super(Listener, self).__init__()
 
-  # the Data Wrangling with Python suggested overwriting `on_data` but, after
-  # reading the `tweepy` documentation and source code, I realised that it is
-  # best to use `on_status`
+    # Data Wrangling with Python suggested overwriting `on_data` but, after
+    # reading the `tweepy` documentation and source code, I realised that it is
+    # best to use `on_status`
 
-  # def on_data(self, data):
-  #   json_data = json.loads(data)
-  #   print(data) 
-  #   self.f_out.write(unicode(json.dumps(json_data, ensure_ascii=False, sort_keys=True)))
-  #   # self.f_out.write(data)
-  #   self.f_out.write(u'\n')
-  #   return True
+    # def on_data(self, data):
+    #   json_data = json.loads(data)
+    #   print(data) 
+    #   self.f_out.write(unicode(json.dumps(json_data, ensure_ascii=False, sort_keys=True)))
+    #   # self.f_out.write(data)
+    #   self.f_out.write(u'\n')
+    #   return True
 
     def on_status(self, data):
-        json_data = data._json
-        # print(json_data)
-        # print(
-        #     np.random.choice(emojis_df.fixed_emoji_char.values, 1)[0], 
-        #     end=" "
-        # )
-        # tweet = json.loads(json_data)
-        # the data seems to have already been converted from JSON?
-        tweet = json_data
+        # the data seems to have already been converted from JSON
+        tweet = data._json
         tweet_proj = proj_attr_interest_tweet(tweet)
 
         self.f_out.write(
-            # unicode(
-                # json.dumps(json_data, ensure_ascii=False, sort_keys=True)
-                json.dumps(tweet_proj, ensure_ascii=False, sort_keys=True)
-            # )
+            json.dumps(tweet_proj, ensure_ascii=False, sort_keys=True)
         )
         self.f_out.write(u'\n')
-        # return False
+
         return True
 
     def on_error(self, status_code):
@@ -173,8 +139,6 @@ class Listener(StreamListener):
             #returning False in on_data disconnects the stream
             time.sleep(rate_limit_wait_min*60)
             return True
-
-
 
 # print(tracking)
 
