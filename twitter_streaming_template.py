@@ -84,18 +84,35 @@ keys_of_interest_user = [
 #     "time_zone",
     "verified"
 ]
+
+# changed in 20-June-19, after being pointed out by my MSc student Jubz I can
+# use the extended tweet text (that is not cropped): see
+# https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/intro-to-tweet-json.html
+
 def proj_attr_interest_tweet(tweet):
-    return dict(
-        { 
-            k: tweet[k] 
-            for k in keys_of_interest if k in tweet.keys() 
-        }, 
-        user={ 
-            k: tweet['user'][k] 
-            for k in keys_of_interest_user if k in tweet['user'].keys() 
+    proj_tweet = dict(
+        {
+            k: tweet[k]
+            for k in keys_of_interest if k in tweet.keys()
+        },
+        # I've seen this idiom somewhere, but I have no idea how this
+        # unpacking operation works
+        # **{ k: tweet['user'][k] for k in keys_of_interest_user if k in keys_of_interest_user }
+        user={
+            k: tweet['user'][k]
+            for k in keys_of_interest_user if k in tweet['user'].keys()
         }
     )
 
+    if 'extended_tweet' in tweet:
+        # merging dictionaries: ludicrous syntax. Need to create a helper function
+        # `merge_dict`.
+        # proj_tweet = { **proj_tweet, **{ 'full_text': tweet['extended_tweet']['full_text'] } }
+
+        # if there is an extended, non-truncated version of the tweet's text, use it
+        proj_tweet['text'] = tweet['extended_tweet']['full_text']
+
+    return proj_tweet
 
 
 # how long to wait on a rate limit issue 
